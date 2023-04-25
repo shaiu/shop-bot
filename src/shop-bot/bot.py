@@ -8,8 +8,10 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, Callb
 from telegram.parsemode import ParseMode
 
 WEBHOOK_URL = os.environ.get('WEBHOOK_URL')
-PORT = int(os.environ.get('PORT', 5000))
+PORT = int(os.environ.get('PORT', 5001))
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
+
+SHOP_URL = "http://shop:5001"
 
 # Enable logging
 logging.basicConfig(
@@ -24,7 +26,7 @@ def show_cart(update, context):
     :param context: telegram api context
     """
     logger.info("showing cart")
-    response = requests.get("http://shop:5001/cart")
+    response = requests.get(f"{SHOP_URL}/cart")
     text = ""
     for item in response.json():
         text += f"{item['id']}. {item['name']}\n"
@@ -44,7 +46,7 @@ def add_item(update, context):
     """
     item = update.message.text
     logger.info("got text from user <%s>", item)
-    response = requests.get(f"http://shop:5001/catalog/{item}")
+    response = requests.get(f"{SHOP_URL}/catalog/{item}")
     items = response.json()
     context.bot_data['items'] = items
     kblist = list(map(lambda cart_item:
@@ -65,11 +67,25 @@ def button(update: Update, context) -> None:
     query.answer()
     item_id = query.data
     items = context.bot_data['items']
-    filtered_item = list(filter(lambda item: item['id'] == item_id, items))[0]
+    filtered_item = list(filter(lambda item: str(item['id']) == item_id, items))[0]
     logger.info("adding item <%s> to cart", filtered_item['name'])
-    response = requests.post("http://shop:5001/cart", data=filtered_item)
+    response = requests.post(f"{SHOP_URL}/cart", json=filtered_item)
     logger.info(f"status code from adding cart {response.status_code}")
     query.delete_message()
+
+
+def shop(update: Update, context) -> None:
+    logger.info("shopping")
+    response = requests.post(f"{SHOP_URL}/shop")
+    logger.info(f"status code from shopping {response.status_code}")
+    update.message.reply_text("https://www.rami-levy.co.il/he", parse_mode=ParseMode.MARKDOWN)
+
+
+def clear(update, context) -> None:
+    logger.info("clear cart")
+    response = requests.delete(f"{SHOP_URL}/cart")
+    logger.info(f"status code from clear {response.status_code}")
+    update.message.reply_text("cart cleared", parse_mode=ParseMode.MARKDOWN)
 
 
 def error(update, context):
@@ -83,6 +99,8 @@ def main():
     dispatcher = updater.dispatcher
 
     dispatcher.add_handler(CommandHandler("cart", show_cart))
+    dispatcher.add_handler(CommandHandler("shop", shop))
+    dispatcher.add_handler(CommandHandler("clear", clear))
     dispatcher.add_handler(MessageHandler(Filters.text, add_item))
     dispatcher.add_handler(CallbackQueryHandler(button))
 
