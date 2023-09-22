@@ -6,6 +6,6 @@ build-backend = "hatchling.build"
 name = "shop-bot"
 
 [tool.pytest.ini_options]
-pythonpath = "src"
+pythonpath = "shop-bot"
 
 
