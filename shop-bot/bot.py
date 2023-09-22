@@ -73,7 +73,9 @@ def category_button(update: Update, context):
     filtered_items = list(filter(lambda item: str(item['department']) == department, items))
 
     kblist = list(
-        map(lambda cart_item: [InlineKeyboardButton(cart_item['name'], callback_data=cart_item['id'])], filtered_items))
+        map(lambda cart_item: [
+            InlineKeyboardButton('%s - %s₪' % (cart_item['name'], cart_item["price"]), callback_data=cart_item['id'])],
+            filtered_items))
     reply_markup = InlineKeyboardMarkup(kblist)
 
     query.message.reply_text("Please choose:", reply_markup=reply_markup)
