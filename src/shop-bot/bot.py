@@ -11,7 +11,7 @@ WEBHOOK_URL = os.environ.get('WEBHOOK_URL')
 PORT = int(os.environ.get('PORT', 5001))
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 
-SHOP_URL = "http://192.168.1.105:5001"
+SHOP_URL = "http://shop:5001"
 
 # Enable logging
 logging.basicConfig(
