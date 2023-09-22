@@ -3,15 +3,15 @@ import logging
 import os
 
 import requests
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackQueryHandler
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, ReplyKeyboardRemove
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackQueryHandler, ConversationHandler
 from telegram.parsemode import ParseMode
 
 WEBHOOK_URL = os.environ.get('WEBHOOK_URL')
 PORT = int(os.environ.get('PORT', 5001))
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 
-SHOP_URL = "http://shop:5001"
+SHOP_URL = "http://192.168.1.105:5001"
 
 # Enable logging
 logging.basicConfig(
@@ -28,8 +28,10 @@ def show_cart(update, context):
     logger.info("showing cart")
     response = requests.get(f"{SHOP_URL}/cart")
     text = ""
+    item_number = 1
     for item in response.json():
-        text += f"{item['id']}. {item['name']}\n"
+        text += f"{item_number}. {item['name']}\n"
+        item_number += 1
     if text == "":
         logger.info("no items in cart")
         update.message.reply_text("no items in cart")
@@ -38,9 +40,9 @@ def show_cart(update, context):
     update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
 
 
-def add_item(update, context):
+def item_search(update, context):
     """
-    add item to cart
+    command to search for an item in the catalog and return the categories
     :param update: telegram api update
     :param context: telegram api context
     """
@@ -49,17 +51,41 @@ def add_item(update, context):
     response = requests.get(f"{SHOP_URL}/catalog/{item}")
     items = response.json()
     context.bot_data['items'] = items
-    kblist = list(map(lambda cart_item:
-                      [InlineKeyboardButton(cart_item['name'], callback_data=cart_item['id'])],
-                      items))
+    kblist = list(
+        map(lambda x: [InlineKeyboardButton(x, callback_data=x)], list(set(map(lambda x: x['department'], items)))))
     reply_markup = InlineKeyboardMarkup(kblist)
 
     update.message.reply_text("Please choose:", reply_markup=reply_markup)
 
+    return 'CHOOSE_CATEGORY'
 
-def button(update: Update, context) -> None:
+
+def category_button(update: Update, context):
     """
-    add the chosen item to memory
+    show the items in the chosen category
+    :param update: telegram api update
+    :param context: telegram api context
+    """
+    query = update.callback_query
+    query.answer()
+    department = query.data
+    items = context.bot_data['items']
+    filtered_items = list(filter(lambda item: str(item['department']) == department, items))
+
+    kblist = list(
+        map(lambda cart_item: [InlineKeyboardButton(cart_item['name'], callback_data=cart_item['id'])], filtered_items))
+    reply_markup = InlineKeyboardMarkup(kblist)
+
+    query.message.reply_text("Please choose:", reply_markup=reply_markup)
+
+    query.delete_message()
+
+    return 'CHOOSE_ITEM'
+
+
+def item_button(update: Update, context):
+    """
+    add the chosen item to the cart
     :param update: telegram api update
     :param context: telegram api context
     """
@@ -88,6 +114,14 @@ def clear(update, context) -> None:
     update.message.reply_text("cart cleared", parse_mode=ParseMode.MARKDOWN)
 
 
+# Cancel handler
+def cancel(update, context):
+    update.message.reply_text("Search canceled.", reply_markup=ReplyKeyboardRemove())
+
+    return ConversationHandler.END
+
+
+# Cancel handler
 def error(update, context):
     """Log Errors caused by Updates."""
     logger.warning('Update "%s" caused error "%s"', update, context.error)
@@ -98,11 +132,20 @@ def main():
     updater = Updater(TOKEN, use_context=True)
     dispatcher = updater.dispatcher
 
+    conv_handler = ConversationHandler(
+        entry_points=[MessageHandler(Filters.text & ~Filters.command, item_search)],
+        states={
+            'CHOOSE_CATEGORY': [CallbackQueryHandler(category_button)],
+            'CHOOSE_ITEM': [CallbackQueryHandler(item_button)],
+        },
+        fallbacks=[CommandHandler('cancel', cancel)],
+    )
+
+    dispatcher.add_handler(conv_handler)
+
     dispatcher.add_handler(CommandHandler("cart", show_cart))
     dispatcher.add_handler(CommandHandler("shop", shop))
     dispatcher.add_handler(CommandHandler("clear", clear))
-    dispatcher.add_handler(MessageHandler(Filters.text, add_item))
-    dispatcher.add_handler(CallbackQueryHandler(button))
 
     # log all errors
     dispatcher.add_error_handler(error)
