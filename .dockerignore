@@ -1,0 +1,6 @@
+venv/
+tests/
+.gitignore
+.github
+.idea
+.pytest_cache

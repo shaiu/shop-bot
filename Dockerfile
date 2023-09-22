@@ -1,13 +1,14 @@
 FROM python:3
 
-WORKDIR /usr/src/app
+WORKDIR /app
 
 COPY requirements.txt ./
-RUN pip install -r requirements.txt
 
-COPY src ./
+RUN pip install --no-cache-dir -r requirements.txt
 
-ENV PYTHONPATH=/usr/src/app/shop-bot:/usr/src/app
+COPY . .
+
+ENV PYTHONPATH=/app/shop-bot:/app
 
 EXPOSE 5000
 
