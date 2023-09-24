@@ -100,6 +100,8 @@ def item_button(update: Update, context):
     response = requests.post(f"{SHOP_URL}/cart", json=filtered_item)
     logger.info(f"status code from adding cart {response.status_code}")
     query.delete_message()
+    
+    return ConversationHandler.END
 
 
 def shop(update: Update, context) -> None:
